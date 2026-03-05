@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="theme-color" content="#000011">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <!-- Suppress favicon 404 error -->
+  <link rel="icon" href="data:,">
+  <title>DARK ORBIT PRO - Elite Commander</title>
+  <script>
+    window.onerror = function (msg, url, line, col, error) {
+      var errDiv = document.getElementById('debug-error-overlay');
+      if (!errDiv) {
+        errDiv = document.createElement('div');
+        errDiv.id = 'debug-error-overlay';
+        errDiv.style.position = 'fixed';
+        errDiv.style.top = '0'; errDiv.style.left = '0'; errDiv.style.zIndex = '999999';
+        errDiv.style.background = 'red'; errDiv.style.color = 'white';
+        errDiv.style.padding = '20px'; errDiv.style.fontSize = '18px';
+        errDiv.style.width = '100%';
+        document.body ? document.body.appendChild(errDiv) : document.documentElement.appendChild(errDiv);
+      }
+      var scriptName = url ? url.substring(url.lastIndexOf('/') + 1) : 'unknown';
+      errDiv.innerHTML += '<b>ERROR in ' + scriptName + ' line ' + line + ':</b> ' + msg + '<br>';
+      return false;
+    };
+  </script>
+  <!-- FIX 1: CSS is in same folder as index.html, not in css/ subfolder -->
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+  <canvas id="c"></canvas>
+  <div id="hud-edit-overlay"></div>
+  <div id="hud-edit-banner">✦ DRAG ICONS TO REPOSITION — TAP ⚙️ TO SAVE ✦</div>
+  <div id="fire-effects"></div>
+
+  <!-- HUD Elements -->
+  <div id="scoreboard">
+    <div id="score-title">KILLS</div>
+    <div id="score-value">0</div>
+  </div>
+  <div id="coins-display">
+    <div id="coins-icon">🪙</div>
+    <div id="coins-val">0</div>
+  </div>
+  <div id="hs-strip">
+    <div id="hs-label">BEST</div>
+    <div id="hs-val">0</div>
+  </div>
+  <button id="pause-btn" onclick="togglePause()">⏸</button>
+  <button id="mute-btn" onclick="toggleMute()">🔊</button>
+
+  <!-- HUD Settings Button -->
+  <button id="hud-settings-btn" onclick="toggleHudSettings()" title="HUD Settings">⚙️</button>
+
+  <!-- HUD Settings Panel -->
+  <div id="hud-settings-panel" class="settings-panel">
+    <div class="settings-header">
+      HUD SETTINGS
+      <button class="panel-close-btn" onclick="event.stopPropagation(); toggleHudSettings();" type="button">X</button>
+    </div>
+    <div class="hud-toggle-row">
+      <div class="hud-toggle-label"><span>❤️</span> HP BAR</div>
+      <label class="hud-switch"><input type="checkbox" id="tog-hp" checked
+          onchange="hudToggle('hpbar',this.checked)"><span class="hud-slider"></span></label>
+    </div>
+    <div class="hud-toggle-row">
+      <div class="hud-toggle-label"><span>☠️</span> KILLS</div>
+      <label class="hud-switch"><input type="checkbox" id="tog-score" checked
+          onchange="hudToggle('scoreboard',this.checked)"><span class="hud-slider"></span></label>
+    </div>
+    <div class="hud-toggle-row">
+      <div class="hud-toggle-label"><span>🪙</span> COINS</div>
+      <label class="hud-switch"><input type="checkbox" id="tog-coins" checked
+          onchange="hudToggle('coins-display',this.checked)"><span class="hud-slider"></span></label>
+    </div>
+    <div class="hud-toggle-row">
+      <div class="hud-toggle-label"><span>🏅</span> BEST</div>
+      <label class="hud-switch"><input type="checkbox" id="tog-hs" checked
+          onchange="hudToggle('hs-strip',this.checked)"><span class="hud-slider"></span></label>
+    </div>
+    <div class="hud-toggle-row">
+      <div class="hud-toggle-label"><span>🌊</span> WAVE/TIME</div>
+      <label class="hud-switch"><input type="checkbox" id="tog-hud" checked
+          onchange="hudToggle('hud',this.checked)"><span class="hud-slider"></span></label>
+    </div>
+    <div class="hud-toggle-row">
+      <div class="hud-toggle-label"><span>⚡</span> AGGRESSION</div>
+      <label class="hud-switch"><input type="checkbox" id="tog-aggr" checked
+          onchange="hudToggle('aggr-bar',this.checked)"><span class="hud-slider"></span></label>
+    </div>
+    <div class="hud-toggle-row">
+      <div class="hud-toggle-label"><span>🔫</span> WEAPON</div>
+      <label class="hud-switch"><input type="checkbox" id="tog-wep" checked
+          onchange="hudToggle('weapon-display',this.checked)"><span class="hud-slider"></span></label>
+    </div>
+    <div class="hud-toggle-row">
+      <div class="hud-toggle-label"><span>💫</span> COMBO</div>
+      <label class="hud-switch"><input type="checkbox" id="tog-combo" checked
+          onchange="hudToggle('combo-display',this.checked)"><span class="hud-slider"></span></label>
+    </div>
+    <div class="hud-toggle-row">
+      <div class="hud-toggle-label"><span>✨</span> EFFECTS</div>
+      <select id="effect-quality" onchange="setEffectQuality(this.value)" style="width:60px;padding:3px;background:rgba(80,80,200,.3);border:1px solid #7777ff;border-radius:5px;color:#aaaaff;font-size:7px;font-family:Orbitron,Arial;cursor:pointer;"><option value="low">LOW</option><option value="medium" selected>MEDIUM</option><option value="high">HIGH</option><option value="ultra">ULTRA</option></select>
+    </div>
+    <div style="margin-top:8px;border-top:1px solid rgba(100,100,255,.3);padding-top:8px;">
+      <button id="hud-edit-btn" onclick="toggleHudEditMode()"
+        style="width:100%;padding:6px;background:rgba(0,100,255,.25);border:1.5px solid rgba(0,150,255,.6);border-radius:7px;color:#88ccff;font-size:9px;font-family:Orbitron,Arial;letter-spacing:1px;cursor:pointer;font-weight:700;">🔲
+        EDIT LAYOUT</button>
+      <!-- FIX 2: resetHudPositions is now defined in game.js -->
+      <button onclick="resetHudPositions()"
+        style="width:100%;margin-top:5px;padding:5px;background:rgba(255,50,50,.15);border:1.5px solid rgba(255,80,80,.4);border-radius:7px;color:#ff8888;font-size:8px;font-family:Orbitron,Arial;letter-spacing:1px;cursor:pointer;">↺
+        RESET POSITIONS</button>
+    </div>
+  </div>
+
+  <div id="hud">
+    <div class="hud-item">
+      <div class="hud-label">WAVE</div>
+      <div class="hud-val" id="wave-val">1</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">TIME</div>
+      <div class="hud-val" id="time-val">60</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">ROCKETS</div>
+      <div class="hud-val" id="rocket-val">0</div>
+    </div>
+  </div>
+  <div id="hpbar">
+    <span id="hp-heart-icon">❤️</span>
+    <span id="hp-heart-count">3</span>
+    <span id="hp-heart-slash">/</span>
+    <span id="hp-heart-max">3</span>
+  </div>
+
+  <!-- Target -->
+  <div id="target-reticle">
+    <div id="target-dot"></div>
+  </div>
+  <div id="lock-indicator">
+    <div id="lock-ring">
+      <div id="lock-core"></div>
+    </div>
+  </div>
+
+  <!-- Scanner Box -->
+  <div id="scanner-box">
+    <div id="scn-header">&#9632; SCANNER</div>
+    <div id="scn-name">---</div>
+    <div id="scn-hp-label">HULL INTEGRITY</div>
+    <div id="scn-hp-track">
+      <div id="scn-hp-fill" style="width:100%"></div>
+    </div>
+    <div id="scn-hp-nums">-- / --</div>
+    <div id="scn-divider"></div>
+    <div id="scn-ability-label">ABILITY</div>
+    <div id="scn-ability">---</div>
+    <div id="scn-threat-label">THREAT LEVEL</div>
+    <div id="scn-threat">---</div>
+    <div id="scn-scan-line"></div>
+  </div>
+
+  <!-- Boss Scanner -->
+  <div id="boss-scanner">
+    <div id="bscn-header">&#9632; MOTHERSHIP</div>
+    <div id="bscn-rank">RANK --</div>
+    <div id="bscn-name">---</div>
+    <div id="bscn-hp-label">HULL INTEGRITY</div>
+    <div id="bscn-hp-track">
+      <div id="bscn-hp-fill"></div>
+    </div>
+    <div id="bscn-hp-nums">-- / --</div>
+    <div id="bscn-shield-wrap">
+      <div id="bscn-sh-label">&#128737; SIEGE SHIELD</div>
+      <div id="bscn-sh-track">
+        <div id="bscn-sh-fill"></div>
+      </div>
+      <div id="bscn-sh-nums">-- / --</div>
+    </div>
+    <div id="bscn-divider"></div>
+    <div id="bscn-abilities-label">ACTIVE ABILITIES</div>
+    <div id="bscn-abilities"></div>
+    <div id="bscn-scan-line"></div>
+  </div>
+
+  <!-- Radar Canvas -->
+  <canvas id="radar-canvas"></canvas>
+
+  <!-- New Enemy Alert -->
+  <div id="new-enemy-alert">
+    <div id="nea-icon">👾</div>
+    <div style="overflow:hidden">
+      <div id="nea-tag">▲ NEW ENEMY</div>
+      <div id="nea-name">---</div>
+      <div id="nea-ability">---</div>
+      <div id="nea-threat">---</div>
+    </div>
+  </div>
+
+  <!-- Warnings -->
+  <div id="auto-switch">⚠️ AUTO-SWITCHED WEAPON</div>
+  <div id="low-ammo">⚠️ LOW AMMO!</div>
+  <div id="combo-display">COMBO x0</div>
+
+  <!-- Weapon Display -->
+  <div id="weapon-display">
+    <div id="wep-icon">🔵</div>
+    <div id="wep-name">LASER</div>
+    <div id="wep-ammo">100/100</div>
+    <div id="reload-track">
+      <div id="reload-fill"></div>
+    </div>
+    <div id="reload-label">READY</div>
+  </div>
+
+  <!-- Tactical Hint -->
+  <div id="tactical-hint"></div>
+
+  <!-- Active Space Item HUD -->
+  <div id="hw-bar"></div>
+  <div id="space-item-hud"
+    style="display:none;position:fixed;bottom:68px;left:8px;z-index:26;background:rgba(0,0,0,.88);border:2px solid #ffff00;border-radius:10px;padding:4px 10px;text-align:center;pointer-events:none;min-width:110px;max-width:160px">
+    <div id="si-hud-icon" style="font-size:16px;line-height:1.2">⚡🔥</div>
+    <div id="si-hud-name" style="font-size:7px;color:#ffff00;font-weight:900;letter-spacing:1.5px">RAPID FIRE</div>
+    <div id="si-hud-track"
+      style="width:100%;height:4px;background:rgba(255,255,255,.1);border-radius:2px;margin-top:3px;overflow:hidden">
+      <div id="si-hud-fill" style="height:100%;border-radius:2px;background:#ffff00;transition:width .1s;width:100%">
+      </div>
+    </div>
+    <div id="si-hud-timer" style="font-size:6px;color:rgba(255,255,255,.6);margin-top:2px">5.0s</div>
+  </div>
+
+  <!-- Auto Fire Label -->
+  <div id="auto-fire-label">👆 TAP ENEMY TO TARGET • TAP AMMO TO SWITCH WEAPON</div>
+
+  <!-- Ammo Strip -->
+  <div id="ammo-strip">
+    <div class="ammo-box active" id="ammo-0" style="color:#00ffb4" onclick="switchWeapon(0)">
+      <div class="ammo-icon">🔵</div>
+      <div class="ammo-count" id="count-0">100</div>
+      <div class="ammo-regen">
+        <div class="ammo-regen-fill" id="regen-0" style="width:100%"></div>
+      </div>
+    </div>
+    <div class="ammo-box" id="ammo-1" style="color:#ff6600" onclick="switchWeapon(1)">
+      <div class="ammo-icon">🔥</div>
+      <div class="ammo-count" id="count-1">30</div>
+      <div class="ammo-regen">
+        <div class="ammo-regen-fill" id="regen-1" style="width:100%"></div>
+      </div>
+    </div>
+    <div class="ammo-box" id="ammo-2" style="color:#ff0000" onclick="switchWeapon(2)">
+      <div class="ammo-icon">💥</div>
+      <div class="ammo-count" id="count-2">15</div>
+      <div class="ammo-regen">
+        <div class="ammo-regen-fill" id="regen-2" style="width:100%"></div>
+      </div>
+    </div>
+    <div class="ammo-box" id="ammo-3" style="color:#aa00ff" onclick="switchWeapon(3)">
+      <div class="ammo-icon">⚡</div>
+      <div class="ammo-count" id="count-3">20</div>
+      <div class="ammo-regen">
+        <div class="ammo-regen-fill" id="regen-3" style="width:100%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fire Button -->
+  <button id="fire-btn" onpointerdown="startFiring()" onpointerup="stopFiring()" onpointerleave="stopFiring()">🔥
+    FIRE</button>
+
+  <!-- Ability Bar -->
+  <div id="ability-bar">
+    <div class="ability-slot ready" id="ability-0" onclick="useAbility(0)">
+      <div class="ability-icon">🛡️</div>
+      <div class="ability-key">[Q]</div>
+      <div class="ability-cd" style="width:0%"></div>
+    </div>
+    <div class="ability-slot ready" id="ability-1" onclick="useAbility(1)">
+      <div class="ability-icon">💣</div>
+      <div class="ability-key">[W]</div>
+      <div class="ability-cd" style="width:0%"></div>
+    </div>
+    <div class="ability-slot ready" id="ability-2" onclick="useAbility(2)">
+      <div class="ability-icon">⏱️</div>
+      <div class="ability-key">[E]</div>
+      <div class="ability-cd" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- Boss Warning -->
+  <div id="boss-warning">
+    <div class="boss-title">⚠️ WARNING ⚠️</div>
+    <div class="boss-subtitle">MOTHERSHIP APPROACHING</div>
+  </div>
+  <div id="boss-hp-container">
+    <div id="boss-hp-fill"></div>
+    <div id="boss-hp-text">MOTHERSHIP HP: 100%</div>
+  </div>
+
+  <!-- Achievement Popup -->
+  <div id="achievement-popup">
+    <div class="ach-title">🏆 ACHIEVEMENT UNLOCKED</div>
+    <div class="ach-name" id="ach-name">First Blood</div>
+    <div class="ach-desc" id="ach-desc">Kill first enemy</div>
+  </div>
+
+  <!-- Shop Corner Panel -->
+  <button id="shop-btn" onclick="toggleShop()" title="Upgrade Shop">🛒</button>
+  <div id="shop-panel">
+    <div id="shop-panel-title">⚔️ UPGRADES</div>
+    <div id="shop-coins">🪙 <span id="shop-coins-val">0</span></div>
+    <div id="shop-grid"></div>
+    <button class="gbtn" style="width:100%;margin-top:8px;padding:7px;font-size:10px" onclick="toggleShop()">✕
+      CLOSE</button>
+  </div>
+
+  <!-- Mission Progress -->
+  <div id="mission-bar">
+    <div id="mission-label">🎯 MISSION 1</div>
+    <div id="mission-track">
+      <div id="mission-fill"></div>
+    </div>
+    <div id="mission-txt">0/600</div>
+  </div>
+
+  <!-- Wave Kill Progress -->
+  <div id="wavekill-bar">
+    <div id="wavekill-label">WAVE KILLS</div>
+    <div id="wavekill-track">
+      <div id="wavekill-fill"></div>
+    </div>
+    <div id="wavekill-txt">0/100</div>
+  </div>
+
+  <!-- Kill-to-Coin HUD -->
+  <div id="kill-coin-bar">
+    <div id="kill-coin-label">KILLS→COIN</div>
+    <div id="kill-coin-track">
+      <div id="kill-coin-fill"></div>
+    </div>
+    <div id="kill-coin-val">0/10</div>
+  </div>
+
+  <!-- Corpse Count HUD -->
+  <div id="corpse-count-hud" style="
+    position:fixed;bottom:180px;left:8px;z-index:20;
+    background:rgba(0,0,0,0.7);border:1.5px solid rgba(150,150,150,0.3);
+    border-radius:8px;padding:4px 10px;
+    font-family:Orbitron,Arial;text-align:center;
+    pointer-events:none;display:none
+  ">
+    <div style="font-size:5px;color:rgba(200,200,200,0.5);letter-spacing:1px">CORPSES</div>
+    <div id="corpse-count-val" style="font-size:14px;font-weight:900;color:#888888">0</div>
+  </div>
+
+  <!-- Aggression Bar -->
+  <div id="aggr-bar">
+    <div id="aggr-label">⚡ ALIEN AGGRESSION</div>
+    <div id="aggr-track">
+      <div id="aggr-fill"></div>
+    </div>
+  </div>
+
+  <!-- Menu -->
+  <div class="screen" id="menu">
+    <div class="gtitle">DARK ORBIT</div>
+    <div class="gsub">&#183; &#183; &#183; PRO EDITION &#183; &#183; &#183;</div>
+    <div id="menu-stats">
+      <div class="menu-stat">
+        <div class="menu-stat-n" id="menu-best">0</div>
+        <div class="menu-stat-l">BEST KILLS</div>
+      </div>
+      <div class="menu-stat">
+        <div class="menu-stat-n" id="menu-total">0</div>
+        <div class="menu-stat-l">TOTAL COINS</div>
+      </div>
+      <div class="menu-stat">
+        <div class="menu-stat-n" id="menu-ach">0</div>
+        <div class="menu-stat-l">ACHIEVEMENTS</div>
+      </div>
+    </div>
+    <div id="daily-badge" onclick="claimDaily()">&#127873; DAILY REWARD &#8212; CLAIM NOW!</div>
+    <div id="menu-tabs">
+      <button class="tab-btn active" onclick="switchTab('play',this)">&#128640; PLAY</button>
+      <button class="tab-btn" onclick="switchTab('aliens',this)">&#128126; ALIENS</button>
+      <button class="tab-btn" onclick="switchTab('missions',this)">&#127919; MISSIONS</button>
+      <button class="tab-btn" onclick="switchTab('leaderboard',this)">&#127942; TOP 10</button>
+      <button class="tab-btn" onclick="switchTab('achievements',this)">&#127775; MEDALS</button>
+    </div>
+    <div class="tab-panel" id="tab-play">
+      <div class="gdesc">
+        <b>&#127919; TAP ENEMY</b> to lock &amp; auto-fire at ships<br>
+        <b>&#128165; TAP ALIEN BULLETS</b> to intercept &amp; destroy them!<br>
+        <b>&#10084;&#65039; Collect Hearts</b> &#8212; more HP, but aliens get FASTER!<br>
+        <b>&#9732;&#65039; Asteroids</b> &#8212; tap to target &amp; shoot them!<br>
+        <b>10 Kills = 1 &#129693;</b> &#8212; upgrade weapons to max Level 10<br>
+        <b>Each Wave: 110 kills</b> &#8212; <b>1000 kills = MOTHERSHIP!</b>
+      </div>
+
+      <button class="gbtn" onclick="startGame()">&#9654; PLAY</button>
+    </div>
+
+    <div class="tab-panel hidden" id="tab-aliens">
+      <div id="alien-encyc">Loading...</div>
+    </div>
+
+    <div class="tab-panel hidden" id="tab-leaderboard">
+      <div id="lb-header-row">
+        <span class="lb-col-h">RANK</span>
+        <span class="lb-col-h">KILLS</span>
+        <span class="lb-col-h">WAVE</span>
+        <span class="lb-col-h">DATE</span>
+      </div>
+      <div id="lb-list">Loading...</div>
+      <button class="gbtn" onclick="startGame()" style="margin-top:10px">&#9654; PLAY</button>
+    </div>
+
+    <div class="tab-panel hidden" id="tab-achievements">
+      <div id="ach-list">Loading...</div>
+      <button class="gbtn" onclick="startGame()" style="margin-top:10px">&#9654; PLAY</button>
+    </div>
+
+    <div class="tab-panel hidden" id="tab-missions">
+      <div id="mission-list">Loading...</div>
+      <button class="gbtn" onclick="startGame()" style="margin-top:10px">&#9654; PLAY</button>
+    </div>
+
+
+    <!-- Pause Menu -->
+    <div id="pause-menu">
+      <div class="gtitle" style="font-size:40px;margin-bottom:24px">PAUSED</div>
+      <button class="gbtn" onclick="togglePause()">▶ RESUME</button>
+      <button class="gbtn" style="border-color:#8888ff;background:rgba(80,80,200,.12);color:#aaaaff;margin-top:10px"
+        onclick="togglePauseHudSettings()">⚙️ HUD SETTINGS</button>
+      <div id="pause-hud-panel"
+        style="display:none;margin-top:14px;background:rgba(5,5,30,.95);border:1.5px solid #6666ff;border-radius:12px;padding:10px 16px;width:220px;box-shadow:0 0 16px rgba(80,80,255,.25)">
+        <div
+          style="font-size:8px;color:#8888ff;letter-spacing:2px;font-weight:900;text-align:center;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid rgba(100,100,255,.25)">
+          ⚙ HUD ELEMENTS</div>
+        <div class="hud-toggle-row">
+          <div class="hud-toggle-label"><span>❤️</span> HP BAR</div>
+          <label class="hud-switch"><input type="checkbox" id="ptog-hp" checked
+              onchange="hudToggle('hpbar',this.checked);syncTog('tog-hp',this.checked)"><span
+              class="hud-slider"></span></label>
+        </div>
+        <div class="hud-toggle-row">
+          <div class="hud-toggle-label"><span>☠️</span> KILLS</div>
+          <label class="hud-switch"><input type="checkbox" id="ptog-score" checked
+              onchange="hudToggle('scoreboard',this.checked);syncTog('tog-score',this.checked)"><span
+              class="hud-slider"></span></label>
+        </div>
+        <div class="hud-toggle-row">
+          <div class="hud-toggle-label"><span>🪙</span> COINS</div>
+          <label class="hud-switch"><input type="checkbox" id="ptog-coins" checked
+              onchange="hudToggle('coins-display',this.checked);syncTog('tog-coins',this.checked)"><span
+              class="hud-slider"></span></label>
+        </div>
+        <div class="hud-toggle-row">
+          <div class="hud-toggle-label"><span>🏅</span> BEST</div>
+          <label class="hud-switch"><input type="checkbox" id="ptog-hs" checked
+              onchange="hudToggle('hs-strip',this.checked);syncTog('tog-hs',this.checked)"><span
+              class="hud-slider"></span></label>
+        </div>
+        <div class="hud-toggle-row">
+          <div class="hud-toggle-label"><span>🌊</span> WAVE / TIME</div>
+          <label class="hud-switch"><input type="checkbox" id="ptog-hud" checked
+              onchange="hudToggle('hud',this.checked);syncTog('tog-hud',this.checked)"><span
+              class="hud-slider"></span></label>
+        </div>
+        <div class="hud-toggle-row">
+          <div class="hud-toggle-label"><span>⚡</span> AGGRESSION</div>
+          <label class="hud-switch"><input type="checkbox" id="ptog-aggr" checked
+              onchange="hudToggle('aggr-bar',this.checked);syncTog('tog-aggr',this.checked)"><span
+              class="hud-slider"></span></label>
+        </div>
+        <div class="hud-toggle-row">
+          <div class="hud-toggle-label"><span>🔫</span> WEAPON</div>
+          <label class="hud-switch"><input type="checkbox" id="ptog-wep" checked
+              onchange="hudToggle('weapon-display',this.checked);syncTog('tog-wep',this.checked)"><span
+              class="hud-slider"></span></label>
+        </div>
+        <div class="hud-toggle-row">
+          <div class="hud-toggle-label"><span>💫</span> COMBO</div>
+          <label class="hud-switch"><input type="checkbox" id="ptog-combo" checked
+              onchange="hudToggle('combo-display',this.checked);syncTog('tog-combo',this.checked)"><span
+              class="hud-slider"></span></label>
+        </div>
+      </div>
+      <button class="gbtn red" onclick="backToMenu()" style="margin-top:14px">✕ ABORT MISSION</button>
+    </div>
+
+    <!-- FIX 3: game-over and mission-victory are now SEPARATE divs (were incorrectly nested before) -->
+    <!-- Game Over -->
+    <div id="game-over">
+      <div class="go-title">MISSION FAILED</div>
+      <div id="new-record" style="display:none">🏆 NEW RECORD!</div>
+      <div class="go-stats">
+        <div class="stat-box">
+          <div class="stat-num" id="final-kills">0</div>
+          <div class="stat-label">KILLS</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="final-wave">0</div>
+          <div class="stat-label">WAVE</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-num" id="final-time">0</div>
+          <div class="stat-label">TIME</div>
+        </div>
+      </div>
+      <div id="coins-earned">+0 🪙 COINS EARNED</div>
+      <button class="gbtn gold" id="btn-ad-revive" onclick="watchAdToRevive()"
+        style="margin-top:12px;background:linear-gradient(to right, #cc8800, #ffcc00);color:#000;">📺 WATCH AD TO
+        CONTINUE</button>
+      <button id="share-btn" onclick="shareScore()" style="margin-top:12px">📤 SHARE SCORE</button>
+      <button class="gbtn" onclick="startGame()">▶ RESTART MISSION</button>
+      <button class="gbtn red" onclick="backToMenu()" style="margin-top:12px">🏠 MENU</button>
+    </div>
+
+    <!-- Mission Victory (separate from game-over) -->
+    <div id="mission-victory">
+      <div id="victory-bg"></div>
+      <div id="victory-content">
+        <div id="victory-title">MISSION COMPLETE!</div>
+        <div id="victory-subtitle">MOTHERSHIP DESTROYED</div>
+        <div id="victory-planet-preview">🌍</div>
+        <div id="victory-stats">
+          <div class="vstat">
+            <div class="vstat-num" id="v-kills">0</div>
+            <div class="vstat-label">KILLS</div>
+          </div>
+          <div class="vstat">
+            <div class="vstat-num" id="v-wave">0</div>
+            <div class="vstat-label">WAVE</div>
+          </div>
+          <div class="vstat">
+            <div class="vstat-num" id="v-coins">0</div>
+            <div class="vstat-label">🪙 EARNED</div>
+          </div>
+        </div>
+        <div id="victory-reward">🏆 +500 BONUS COINS • ALL AMMO REFILLED</div>
+        <div id="victory-next-planet">🌐 NEXT MISSION UNLOCKED ➜ NEW PLANET</div>
+        <div id="victory-btns">
+          <button class="gbtn" style="border-color:#00ffb4;color:#00ffb4" onclick="continueAfterVictory()">▶ NEXT
+            MISSION</button>
+          <button class="gbtn" style="border-color:#ffd700;color:#ffd700;margin-top:6px" onclick="startGame()">🔄
+            REPLAY</button>
+          <button class="gbtn red" onclick="backToMenu()" style="margin-top:6px">🏠 MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orbital Missile Container -->
+    <div id="orbit-missiles"></div>
+
+    <!-- Player Hit Message -->
+    <div id="hit-message"></div>
+
+    <!-- Daily Reward Popup -->
+    <div id="daily-popup">
+      <div class="daily-box">
+        <div class="daily-title">🎁 DAILY REWARD</div>
+        <div class="daily-streak" id="daily-streak-text">Day 1 Streak</div>
+        <div class="daily-reward">🪙</div>
+        <div class="daily-amount" id="daily-amount">+100</div>
+        <div class="daily-label">COINS</div>
+        <button class="gbtn gold" onclick="confirmDaily()">CLAIM!</button>
+      </div>
+    </div>
+
+    <!-- Tutorial -->
+    <div id="tutorial" class="off">
+      <div id="tut-dots">
+        <div class="tut-dot active"></div>
+        <div class="tut-dot"></div>
+        <div class="tut-dot"></div>
+      </div>
+      <div class="tut-step" id="tut-content">
+        <div class="tut-icon">🎯</div>
+        <div class="tut-title">AIM TO WIN</div>
+        <div class="tut-text">Move your mouse or touch the screen to aim at alien ships. Your spaceship will
+          automatically track targets in range!</div>
+      </div>
+      <button class="gbtn" id="tut-btn" onclick="nextTutorial()">NEXT →</button>
+    </div>
+
+    <!-- Ad Banner -->
+    <div id="ad-banner"><span>ADVERTISEMENT SPACE — ADMOB INTEGRATION READY</span></div>
+
+    <!--
+  DARK ORBIT PRO — Script Load Order with Google Standard Structure:
+-->
+    <script src="config/config.js"></script>
+
+    <script src="entities/characters.js"></script>
+    <script src="entities/alien.js"></script>
+    <script src="entities/alien-chat.js"></script>
+    <script src="entities/boss.js"></script>
+    <script src="entities/player.js"></script>
+    <script src="entities/bullet.js"></script>
+    <script src="entities/corpse.js"></script>
+    <script src="entities/ambulance.js"></script>
+    <script src="entities/spaceman.js"></script>
+
+    <script src="entities/effects.js"></script>
+    <script src="ui/cinematicEffects.js"></script>
+    <script src="ui/cinematic.js"></script>
+
+    <script src="assets/sounds/audio.js"></script>
+
+    <script src="core/game.js"></script>
+    <script src="ui/hud.js"></script>
+    <script src="ui/char-ability-btn.js"></script>
+
+    <script src="ui/intro.js"></script>
+
+    <script src="systems/graphics-plus.js"></script>
+    <script src="ui/iap.js"></script>
+    <script src="monetization/ad-reward.js"></script>
+
+    <!-- Bootstrap handled inside game.js -->
+</body>
+
+</html>
